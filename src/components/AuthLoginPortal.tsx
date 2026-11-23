@@ -9,12 +9,15 @@ import {
   UserPlus,
   AlertCircle,
   CheckCircle2,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 
 interface AuthLoginPortalProps {
   signingIn: boolean;
   authError: string | null;
   isOperationNotAllowed: boolean;
+  isUnauthorizedDomain: boolean;
   onGoogleSignIn: () => Promise<void>;
   onPasswordSignIn: (identifier: string, password: string) => Promise<void>;
   onPasswordRegister: (params: {
@@ -39,6 +42,7 @@ export const AuthLoginPortal: React.FC<AuthLoginPortalProps> = ({
   signingIn,
   authError,
   isOperationNotAllowed,
+  isUnauthorizedDomain,
   onGoogleSignIn,
   onPasswordSignIn,
   onPasswordRegister,
@@ -53,6 +57,20 @@ export const AuthLoginPortal: React.FC<AuthLoginPortalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [resetSentMsg, setResetSentMsg] = useState<string | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState(false);
+
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+
+  const handleCopyHostname = async () => {
+    if (!currentHostname) return;
+    try {
+      await navigator.clipboard.writeText(currentHostname);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2000);
+    } catch {
+      // ignore clipboard denial
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,21 +203,84 @@ export const AuthLoginPortal: React.FC<AuthLoginPortalProps> = ({
           </div>
 
           {activeError && (
-            <div className="p-3.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 space-y-2">
+            <div className="p-3.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 space-y-2.5">
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
                 <span>{activeError}</span>
               </div>
+              {isUnauthorizedDomain && (
+                <div className="pt-2 border-t border-red-200 text-slate-700 space-y-2">
+                  <p className="font-semibold text-slate-900">
+                    Domain Deploy Belum Terdaftar di Firebase Authorized Domains:
+                  </p>
+                  {currentHostname && (
+                    <div className="flex items-center justify-between gap-2 bg-white border border-red-200 rounded-md px-2.5 py-1.5">
+                      <code className="font-mono-tabular text-slate-900 truncate">
+                        {currentHostname}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={handleCopyHostname}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded shrink-0"
+                      >
+                        <Copy className="w-3 h-3" />
+                        {copiedDomain ? 'Tersalin' : 'Salin Domain'}
+                      </button>
+                    </div>
+                  )}
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>
+                      Buka Firebase Console proyek{' '}
+                      <span className="font-mono-tabular font-semibold">plated-coast-2n2tx</span>.
+                    </li>
+                    <li>
+                      Masuk ke <strong>Authentication</strong> → <strong>Settings</strong> →{' '}
+                      <strong>Authorized domains</strong>.
+                    </li>
+                    <li>
+                      Klik <strong>Add domain</strong>, tempel domain di atas (
+                      <span className="font-mono-tabular">{currentHostname || 'domain-anda.vercel.app'}</span>
+                      ), lalu simpan dan muat ulang halaman.
+                    </li>
+                  </ol>
+                  <a
+                    href="https://console.firebase.google.com/project/plated-coast-2n2tx/authentication/settings"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sky-700 font-medium hover:underline"
+                  >
+                    Buka Authorized Domains di Firebase Console
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
               {isOperationNotAllowed && (
-                <div className="pt-2 border-t border-red-200 text-slate-700 space-y-1">
+                <div className="pt-2 border-t border-red-200 text-slate-700 space-y-1.5">
                   <p className="font-semibold text-slate-900">
                     Panduan Mengaktifkan Login User &amp; Password di Firebase Console:
                   </p>
                   <ol className="list-decimal list-inside space-y-0.5">
-                    <li>Buka Firebase Console proyek <span className="font-mono-tabular font-semibold">plated-coast-2n2tx</span>.</li>
-                    <li>Pilih menu <strong>Authentication</strong> → tab <strong>Sign-in method</strong>.</li>
-                    <li>Klik <strong>Add new provider</strong> → pilih <strong>Email/Password</strong>, aktifkan toggle <strong>Enable</strong>, lalu simpan.</li>
+                    <li>
+                      Buka Firebase Console proyek{' '}
+                      <span className="font-mono-tabular font-semibold">plated-coast-2n2tx</span>.
+                    </li>
+                    <li>
+                      Pilih menu <strong>Authentication</strong> → tab <strong>Sign-in method</strong>.
+                    </li>
+                    <li>
+                      Klik <strong>Add new provider</strong> → pilih <strong>Email/Password</strong>,
+                      aktifkan toggle <strong>Enable</strong>, lalu simpan.
+                    </li>
                   </ol>
+                  <a
+                    href="https://console.firebase.google.com/project/plated-coast-2n2tx/authentication/providers"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sky-700 font-medium hover:underline"
+                  >
+                    Buka Sign-in Method di Firebase Console
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                 </div>
               )}
             </div>

@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   updateProfile,
   type User,
@@ -68,6 +70,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isOperationNotAllowed, setIsOperationNotAllowed] = useState(false);
+  const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
+  const [fatalError, setFatalError] = useState<Error | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [pendingClaimNip, setPendingClaimNip] = useState<string | null>(null);
   const [initialTabResolved, setInitialTabResolved] = useState(false);
@@ -105,13 +109,38 @@ export default function App() {
     if (!currentUser) return null;
     if (userAccount?.employeeId) {
       const byLink = employees.find((e) => e.id === userAccount.employeeId);
-      if (byLink) return byLink;
+      if (byLink && (isAdmin || byLink.ownerUid === currentUser.uid)) {
+        return byLink;
+      }
     }
     return employees.find((e) => e.ownerUid === currentUser.uid) || null;
-  }, [currentUser, employees, userAccount]);
+  }, [currentUser, employees, userAccount, isAdmin]);
 
-  // 1. Auth Listener
+  const reportAsyncFirestoreError = useCallback(
+    (err: unknown, op: OperationType, path: string | null) => {
+      try {
+        handleFirestoreError(err, op, path);
+      } catch (wrapped) {
+        setFatalError(wrapped instanceof Error ? wrapped : new Error(String(wrapped)));
+      }
+    },
+    []
+  );
+
+  // 1. Auth Listener & Redirect Result Handler
   useEffect(() => {
+    getRedirectResult(auth).catch((err) => {
+      const raw = err instanceof Error ? err.message : String(err);
+      if (raw.includes('auth/unauthorized-domain')) {
+        setIsUnauthorizedDomain(true);
+        setAuthError(
+          `Domain ${window.location.hostname} belum diizinkan pada Firebase Authentication (Authorized domains).`
+        );
+      } else if (!raw.includes('auth/no-current-user')) {
+        setAuthError(raw);
+      }
+    });
+
     const unsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setAuthReady(true);
@@ -140,7 +169,7 @@ export default function App() {
         setIsAdminDoc(snap.exists());
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, `admins/${currentUser.uid}`);
+        reportAsyncFirestoreError(error, OperationType.GET, `admins/${currentUser.uid}`);
       }
     );
 
@@ -152,22 +181,26 @@ export default function App() {
           setUserAccount(snap.data() as UserAccount);
         } else {
           try {
+            const safeEmail = (currentUser.email || 'user@smpn1pacet.sch.id').trim().slice(0, 200);
+            const safeDisplayName =
+              (currentUser.displayName || 'Pegawai SMPN 1 Pacet').trim().slice(0, 120) ||
+              'Pegawai SMPN 1 Pacet';
             const payload = {
               uid: currentUser.uid,
-              email: currentUser.email || 'user@smpn1pacet.sch.id',
-              displayName: currentUser.displayName || 'Pegawai SMPN 1 Pacet',
+              email: safeEmail.length >= 3 ? safeEmail : 'user@smpn1pacet.sch.id',
+              displayName: safeDisplayName,
               employeeId: '',
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
             };
             await setDoc(userRef, payload);
           } catch (err) {
-            handleFirestoreError(err, OperationType.CREATE, `users/${currentUser.uid}`);
+            reportAsyncFirestoreError(err, OperationType.CREATE, `users/${currentUser.uid}`);
           }
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
+        reportAsyncFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
       }
     );
 
@@ -175,7 +208,7 @@ export default function App() {
       unsubAdmin();
       unsubUser();
     };
-  }, [authReady, currentUser]);
+  }, [authReady, currentUser, reportAsyncFirestoreError]);
 
   // 3. Employees Real-Time Listener
   useEffect(() => {
@@ -193,12 +226,12 @@ export default function App() {
       },
       (error) => {
         setEmployeesLoading(false);
-        handleFirestoreError(error, OperationType.LIST, 'employees');
+        reportAsyncFirestoreError(error, OperationType.LIST, 'employees');
       }
     );
 
     return () => unsub();
-  }, [authReady, currentUser]);
+  }, [authReady, currentUser, reportAsyncFirestoreError]);
 
   // 4. Attendance Real-Time Listener
   useEffect(() => {
@@ -216,12 +249,12 @@ export default function App() {
         setAttendanceRecords(logs);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'attendance');
+        reportAsyncFirestoreError(error, OperationType.LIST, 'attendance');
       }
     );
 
     return () => unsub();
-  }, [authReady, currentUser, selectedDate]);
+  }, [authReady, currentUser, selectedDate, reportAsyncFirestoreError]);
 
   // 5. Private Contact Listener for linked Employee
   useEffect(() => {
@@ -241,7 +274,7 @@ export default function App() {
         }
       },
       (error) => {
-        handleFirestoreError(
+        reportAsyncFirestoreError(
           error,
           OperationType.GET,
           `employees/${myEmployee.id}/private/contact`
@@ -250,7 +283,7 @@ export default function App() {
     );
 
     return () => unsub();
-  }, [authReady, currentUser, myEmployee]);
+  }, [authReady, currentUser, myEmployee, reportAsyncFirestoreError]);
 
   // 5b. School Profile Real-Time Listener
   useEffect(() => {
@@ -270,12 +303,12 @@ export default function App() {
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'school_profile/smpn1pacet');
+        reportAsyncFirestoreError(error, OperationType.GET, 'school_profile/smpn1pacet');
       }
     );
 
     return () => unsub();
-  }, [authReady, currentUser]);
+  }, [authReady, currentUser, reportAsyncFirestoreError]);
 
   // 6. Seed Function
   const seedInitialData = useCallback(async (): Promise<number> => {
@@ -339,38 +372,126 @@ export default function App() {
     }
   }, [authReady, currentUser, initialTabResolved, userAccount, isAdmin]);
 
-  const mapAuthErrorMessage = (err: unknown): { message: string; opNotAllowed: boolean } => {
+  const mapAuthErrorMessage = (
+    err: unknown
+  ): { message: string; opNotAllowed: boolean; unauthorizedDomain: boolean } => {
     const raw = err instanceof Error ? err.message : String(err);
+    if (raw.includes('auth/unauthorized-domain')) {
+      const host = typeof window !== 'undefined' ? window.location.hostname : 'domain ini';
+      return {
+        message: `Domain deploy "${host}" belum terdaftar pada Authorized domains di Firebase Authentication.`,
+        opNotAllowed: false,
+        unauthorizedDomain: true,
+      };
+    }
     if (raw.includes('auth/operation-not-allowed')) {
       return {
         message: 'Metode login User/Email & Password belum diaktifkan pada Firebase Console proyek ini.',
         opNotAllowed: true,
+        unauthorizedDomain: false,
       };
     }
-    if (raw.includes('auth/invalid-credential') || raw.includes('auth/wrong-password') || raw.includes('auth/user-not-found')) {
-      return { message: 'Username/Email atau Password tidak sesuai. Silakan periksa kembali.', opNotAllowed: false };
+    if (raw.includes('auth/popup-closed-by-user') || raw.includes('auth/cancelled-popup-request')) {
+      return {
+        message: 'Jendela login Google ditutup sebelum proses masuk selesai. Silakan coba lagi.',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
+    }
+    if (raw.includes('auth/popup-blocked')) {
+      return {
+        message: 'Popup login Google diblokir oleh browser. Mengalihkan ke halaman login Google...',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
+    }
+    if (
+      raw.includes('auth/invalid-credential') ||
+      raw.includes('auth/wrong-password') ||
+      raw.includes('auth/user-not-found')
+    ) {
+      return {
+        message:
+          'Username/NIP/Email atau Password tidak sesuai. Jika belum pernah membuat akun, silakan klik tab "Aktivasi Akun Pegawai".',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
     }
     if (raw.includes('auth/email-already-in-use')) {
-      return { message: 'Username atau Email ini sudah terdaftar. Silakan masuk melalui tab Masuk User & Password.', opNotAllowed: false };
+      return {
+        message: 'Username atau Email ini sudah terdaftar. Silakan masuk melalui tab Masuk User & Password.',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
     }
     if (raw.includes('auth/weak-password')) {
-      return { message: 'Password terlalu lemah. Gunakan minimal 6 karakter.', opNotAllowed: false };
+      return {
+        message: 'Password terlalu lemah. Gunakan minimal 6 karakter.',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
     }
     if (raw.includes('auth/invalid-email')) {
-      return { message: 'Format username atau email tidak valid.', opNotAllowed: false };
+      return {
+        message: 'Format username atau email tidak valid.',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
     }
-    return { message: raw, opNotAllowed: false };
+    if (raw.includes('auth/network-request-failed')) {
+      return {
+        message: 'Koneksi ke server autentikasi Firebase gagal. Periksa koneksi internet Anda.',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
+    }
+    if (raw.includes('auth/too-many-requests')) {
+      return {
+        message: 'Terlalu banyak percobaan login gagal. Silakan tunggu beberapa menit sebelum mencoba lagi.',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
+    }
+    if (raw.includes('auth/user-disabled')) {
+      return {
+        message: 'Akun ini dinonaktifkan. Hubungi Administrator kepegawaian.',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
+    }
+    if (raw.includes('auth/account-exists-with-different-credential')) {
+      return {
+        message: 'Email ini sudah terdaftar dengan metode login lain. Gunakan metode masuk yang sesuai.',
+        opNotAllowed: false,
+        unauthorizedDomain: false,
+      };
+    }
+    return { message: raw, opNotAllowed: false, unauthorizedDomain: false };
   };
 
   const handleSignIn = async () => {
     setAuthError(null);
     setIsOperationNotAllowed(false);
+    setIsUnauthorizedDomain(false);
     setSigningIn(true);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      if (raw.includes('auth/popup-blocked')) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectErr) {
+          const mappedRedirect = mapAuthErrorMessage(redirectErr);
+          setAuthError(mappedRedirect.message);
+          setIsUnauthorizedDomain(mappedRedirect.unauthorizedDomain);
+          return;
+        }
+      }
       const mapped = mapAuthErrorMessage(err);
       setAuthError(mapped.message);
+      setIsUnauthorizedDomain(mapped.unauthorizedDomain);
     } finally {
       setSigningIn(false);
     }
@@ -379,6 +500,7 @@ export default function App() {
   const handlePasswordSignIn = async (identifier: string, password: string) => {
     setAuthError(null);
     setIsOperationNotAllowed(false);
+    setIsUnauthorizedDomain(false);
     setSigningIn(true);
     try {
       const email = normalizeIdentifierToEmail(identifier);
@@ -387,6 +509,7 @@ export default function App() {
       const mapped = mapAuthErrorMessage(err);
       setAuthError(mapped.message);
       setIsOperationNotAllowed(mapped.opNotAllowed);
+      setIsUnauthorizedDomain(mapped.unauthorizedDomain);
     } finally {
       setSigningIn(false);
     }
@@ -405,6 +528,7 @@ export default function App() {
   }) => {
     setAuthError(null);
     setIsOperationNotAllowed(false);
+    setIsUnauthorizedDomain(false);
     setSigningIn(true);
     try {
       const email = normalizeIdentifierToEmail(identifier);
@@ -417,6 +541,7 @@ export default function App() {
       const mapped = mapAuthErrorMessage(err);
       setAuthError(mapped.message);
       setIsOperationNotAllowed(mapped.opNotAllowed);
+      setIsUnauthorizedDomain(mapped.unauthorizedDomain);
     } finally {
       setSigningIn(false);
     }
@@ -425,6 +550,7 @@ export default function App() {
   const handleSendPasswordReset = async (identifier: string) => {
     setAuthError(null);
     setIsOperationNotAllowed(false);
+    setIsUnauthorizedDomain(false);
     setSigningIn(true);
     try {
       const email = normalizeIdentifierToEmail(identifier);
@@ -681,6 +807,10 @@ export default function App() {
     }
   };
 
+  if (fatalError) {
+    throw fatalError;
+  }
+
   // Loading Splash
   if (!authReady) {
     return (
@@ -697,6 +827,7 @@ export default function App() {
         signingIn={signingIn}
         authError={authError}
         isOperationNotAllowed={isOperationNotAllowed}
+        isUnauthorizedDomain={isUnauthorizedDomain}
         onGoogleSignIn={handleSignIn}
         onPasswordSignIn={handlePasswordSignIn}
         onPasswordRegister={handlePasswordRegister}
