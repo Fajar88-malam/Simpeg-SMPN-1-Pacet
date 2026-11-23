@@ -1,0 +1,382 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==================== GLOBAL HELPERS ====================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && (
+        request.auth.token.email_verified == true ||
+        request.auth.token.firebase.sign_in_provider == 'password'
+      );
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'sangpujangga.malam88@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidDateStr(d) {
+      return d is string && d.size() == 10 && d.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    // ==================== VALIDATION BLUEPRINTS ====================
+    function isValidAdmin(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'role', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'name', 'role', 'createdAt'])
+        && data.uid is string && data.uid == userId && data.uid.size() <= 128
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.role == 'admin'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidUserAccount(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'employeeId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'employeeId', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == userId && data.uid.size() <= 128
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.employeeId is string && data.employeeId.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDepartment(dept) {
+      return dept in [
+        'Pimpinan & Manajemen',
+        'Kurikulum & IPA-Matematika',
+        'Bahasa & Sastra',
+        'IPS, PPKn & Keagamaan',
+        'PJOK & Seni Budaya',
+        'Bimbingan & Konseling',
+        'Tata Usaha & Administrasi',
+        'Sarpras & Perpustakaan'
+      ];
+    }
+
+    function isValidEducationLevel(lvl) {
+      return lvl in ['S3', 'S2', 'S1/D4', 'D3', 'D2/D1', 'SMA/SMK'];
+    }
+
+    function isValidEmployee(data, employeeId) {
+      return data.keys().hasAll([
+          'id', 'ownerUid', 'schoolCode', 'nip', 'nama', 'gelarDepan', 'gelarBelakang',
+          'jabatan', 'tmtJabatan', 'departemen', 'statusKepegawaian', 'pangkatGolongan',
+          'tmtPangkat', 'tmtCpns', 'masaKerjaTahun', 'masaKerjaBulan', 'diklatNama',
+          'diklatTahun', 'pendidikanJenjang', 'pendidikanJurusan', 'pendidikanTahunLulus',
+          'tanggalLahir', 'jenisKelamin', 'catatanMutasi', 'isVerifiedByAdmin',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerUid', 'schoolCode', 'nip', 'nama', 'gelarDepan', 'gelarBelakang',
+          'jabatan', 'tmtJabatan', 'departemen', 'statusKepegawaian', 'pangkatGolongan',
+          'tmtPangkat', 'tmtCpns', 'masaKerjaTahun', 'masaKerjaBulan', 'diklatNama',
+          'diklatTahun', 'pendidikanJenjang', 'pendidikanJurusan', 'pendidikanTahunLulus',
+          'tanggalLahir', 'jenisKelamin', 'catatanMutasi', 'isVerifiedByAdmin',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == employeeId && data.id.size() <= 128
+        && data.ownerUid is string && data.ownerUid.size() <= 128
+        && data.schoolCode == 'SMPN1PACET'
+        && data.nip is string && data.nip.size() >= 1 && data.nip.size() <= 32
+        && data.nama is string && data.nama.size() >= 2 && data.nama.size() <= 140
+        && data.gelarDepan is string && data.gelarDepan.size() <= 40
+        && data.gelarBelakang is string && data.gelarBelakang.size() <= 60
+        && data.jabatan is string && data.jabatan.size() >= 2 && data.jabatan.size() <= 140
+        && isValidDateStr(data.tmtJabatan)
+        && isValidDepartment(data.departemen)
+        && data.statusKepegawaian in ['PNS', 'PPPK', 'Honorer Daerah']
+        && data.pangkatGolongan is string && data.pangkatGolongan.size() <= 60
+        && isValidDateStr(data.tmtPangkat)
+        && isValidDateStr(data.tmtCpns)
+        && data.masaKerjaTahun is int && data.masaKerjaTahun >= 0 && data.masaKerjaTahun <= 50
+        && data.masaKerjaBulan is int && data.masaKerjaBulan >= 0 && data.masaKerjaBulan <= 11
+        && data.diklatNama is string && data.diklatNama.size() <= 160
+        && data.diklatTahun is string && data.diklatTahun.size() <= 10
+        && isValidEducationLevel(data.pendidikanJenjang)
+        && data.pendidikanJurusan is string && data.pendidikanJurusan.size() <= 120
+        && data.pendidikanTahunLulus is string && data.pendidikanTahunLulus.size() <= 10
+        && isValidDateStr(data.tanggalLahir)
+        && data.jenisKelamin in ['L', 'P']
+        && data.catatanMutasi is string && data.catatanMutasi.size() <= 300
+        && data.isVerifiedByAdmin is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPrivateContact(data) {
+      return data.keys().hasAll(['ownerUid', 'nik', 'noHp', 'emailPribadi', 'alamat', 'kontakDarurat', 'updatedAt'])
+        && data.keys().hasOnly(['ownerUid', 'nik', 'noHp', 'emailPribadi', 'alamat', 'kontakDarurat', 'updatedAt'])
+        && data.ownerUid is string && data.ownerUid.size() <= 128
+        && data.nik is string && data.nik.size() <= 20
+        && data.noHp is string && data.noHp.size() <= 30
+        && data.emailPribadi is string && data.emailPribadi.size() <= 200
+        && data.alamat is string && data.alamat.size() <= 300
+        && data.kontakDarurat is string && data.kontakDarurat.size() <= 160
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAttendance(data, attendanceId) {
+      return data.keys().hasAll([
+          'id', 'schoolCode', 'employeeId', 'ownerUid', 'employeeName',
+          'nip', 'departemen', 'date', 'status', 'checkInTime',
+          'checkOutTime', 'notes', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'schoolCode', 'employeeId', 'ownerUid', 'employeeName',
+          'nip', 'departemen', 'date', 'status', 'checkInTime',
+          'checkOutTime', 'notes', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == attendanceId && data.id.size() <= 128
+        && data.schoolCode == 'SMPN1PACET'
+        && data.employeeId is string && isValidId(data.employeeId)
+        && data.ownerUid is string && data.ownerUid.size() <= 128
+        && data.employeeName is string && data.employeeName.size() >= 2 && data.employeeName.size() <= 140
+        && data.nip is string && data.nip.size() >= 1 && data.nip.size() <= 32
+        && data.departemen is string && data.departemen.size() >= 2 && data.departemen.size() <= 80
+        && isValidDateStr(data.date)
+        && data.status in ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Dinas Luar']
+        && data.checkInTime is string && data.checkInTime.size() <= 40
+        && data.checkOutTime is string && data.checkOutTime.size() <= 40
+        && data.notes is string && data.notes.size() <= 300
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSchoolProfile(data, schoolId) {
+      return data.keys().hasAll([
+          'id', 'schoolCode', 'namaSekolah', 'npsn', 'dinasNaungan',
+          'alamat', 'kodePos', 'telepon', 'email', 'website',
+          'kepalaSekolahNama', 'kepalaSekolahNip', 'logoSekolah', 'logoPemda', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'schoolCode', 'namaSekolah', 'npsn', 'dinasNaungan',
+          'alamat', 'kodePos', 'telepon', 'email', 'website',
+          'kepalaSekolahNama', 'kepalaSekolahNip', 'logoSekolah', 'logoPemda', 'updatedAt'
+        ])
+        && data.id is string && data.id == schoolId && data.id.size() <= 128
+        && data.schoolCode == 'SMPN1PACET'
+        && data.namaSekolah is string && data.namaSekolah.size() >= 2 && data.namaSekolah.size() <= 140
+        && data.npsn is string && data.npsn.size() <= 32
+        && data.dinasNaungan is string && data.dinasNaungan.size() <= 180
+        && data.alamat is string && data.alamat.size() >= 5 && data.alamat.size() <= 300
+        && data.kodePos is string && data.kodePos.size() <= 16
+        && data.telepon is string && data.telepon.size() <= 40
+        && data.email is string && data.email.size() <= 140
+        && data.website is string && data.website.size() <= 140
+        && data.kepalaSekolahNama is string && data.kepalaSekolahNama.size() <= 140
+        && data.kepalaSekolahNip is string && data.kepalaSekolahNip.size() <= 32
+        && data.logoSekolah is string && data.logoSekolah.size() <= 200000
+        && data.logoPemda is string && data.logoPemda.size() <= 200000
+        && data.updatedAt is timestamp;
+    }
+
+    // ==================== COLLECTION RULES ====================
+
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(userId)
+        && isAdmin()
+        && isValidAdmin(incoming(), userId)
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(userId)
+        && isAdmin()
+        && isValidAdmin(incoming(), userId)
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(userId) && isBootstrappedAdmin();
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().uid == existing().uid
+        && (
+          isAdmin() ||
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'employeeId', 'updatedAt']))
+        );
+      allow delete: if isValidId(userId) && isBootstrappedAdmin();
+    }
+
+    match /employees/{employeeId} {
+      allow get: if isValidId(employeeId) && isVerifiedUser();
+      allow list: if isVerifiedUser() && (isBootstrappedAdmin() || resource.data.schoolCode == 'SMPN1PACET');
+      allow create: if isValidId(employeeId)
+        && isVerifiedUser()
+        && isValidEmployee(incoming(), employeeId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (incoming().ownerUid == request.auth.uid && incoming().isVerifiedByAdmin == false)
+        );
+      allow update: if isValidId(employeeId)
+        && isVerifiedUser()
+        && isValidEmployee(incoming(), employeeId)
+        && incoming().id == existing().id
+        && incoming().schoolCode == existing().schoolCode
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            // Claim an unclaimed pre-seeded profile once
+            existing().ownerUid == ''
+            && incoming().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['ownerUid', 'updatedAt'])
+          ) ||
+          (
+            // Self-edit personal & academic details for own employee record
+            existing().ownerUid == request.auth.uid
+            && incoming().ownerUid == existing().ownerUid
+            && incoming().isVerifiedByAdmin == existing().isVerifiedByAdmin
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'nama', 'gelarDepan', 'gelarBelakang', 'tanggalLahir', 'jenisKelamin',
+              'pendidikanJenjang', 'pendidikanJurusan', 'pendidikanTahunLulus',
+              'diklatNama', 'diklatTahun', 'catatanMutasi', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(employeeId) && isAdmin();
+
+      match /private/{docId} {
+        allow get: if isValidId(employeeId)
+          && docId == 'contact'
+          && isVerifiedUser()
+          && (
+            isAdmin() ||
+            get(/databases/$(database)/documents/employees/$(employeeId)).data.ownerUid == request.auth.uid
+          );
+        allow list: if false;
+        allow create: if isValidId(employeeId)
+          && docId == 'contact'
+          && isVerifiedUser()
+          && isValidPrivateContact(incoming())
+          && incoming().updatedAt == request.time
+          && existsAfter(/databases/$(database)/documents/employees/$(employeeId))
+          && (
+            isAdmin() ||
+            (
+              getAfter(/databases/$(database)/documents/employees/$(employeeId)).data.ownerUid == request.auth.uid
+              && incoming().ownerUid == request.auth.uid
+            )
+          );
+        allow update: if isValidId(employeeId)
+          && docId == 'contact'
+          && isVerifiedUser()
+          && isValidPrivateContact(incoming())
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() ||
+            (
+              get(/databases/$(database)/documents/employees/$(employeeId)).data.ownerUid == request.auth.uid
+              && incoming().ownerUid == request.auth.uid
+              && (
+                (existing().ownerUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'nik', 'noHp', 'emailPribadi', 'alamat', 'kontakDarurat', 'updatedAt'
+                ])) ||
+                (existing().ownerUid == '' && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'ownerUid', 'nik', 'noHp', 'emailPribadi', 'alamat', 'kontakDarurat', 'updatedAt'
+                ]))
+              )
+            )
+          );
+        allow delete: if isValidId(employeeId) && isAdmin();
+      }
+    }
+
+    match /attendance/{attendanceId} {
+      allow get: if isValidId(attendanceId) && isVerifiedUser();
+      allow list: if isVerifiedUser() && (isBootstrappedAdmin() || resource.data.schoolCode == 'SMPN1PACET');
+      allow create: if isValidId(attendanceId)
+        && isVerifiedUser()
+        && isValidAttendance(incoming(), attendanceId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/employees/$(incoming().employeeId))
+        && (
+          isAdmin() ||
+          (
+            incoming().ownerUid == request.auth.uid
+            && get(/databases/$(database)/documents/employees/$(incoming().employeeId)).data.ownerUid == request.auth.uid
+          )
+        );
+      allow update: if isValidId(attendanceId)
+        && isVerifiedUser()
+        && isValidAttendance(incoming(), attendanceId)
+        && incoming().id == existing().id
+        && incoming().schoolCode == existing().schoolCode
+        && incoming().employeeId == existing().employeeId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && incoming().ownerUid == existing().ownerUid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'checkOutTime', 'notes', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(attendanceId) && isAdmin();
+    }
+
+    match /school_profile/{schoolId} {
+      allow get: if isValidId(schoolId) && isVerifiedUser();
+      allow list: if isVerifiedUser() && (isBootstrappedAdmin() || resource.data.schoolCode == 'SMPN1PACET');
+      allow create: if isValidId(schoolId)
+        && isAdmin()
+        && isValidSchoolProfile(incoming(), schoolId)
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(schoolId)
+        && isAdmin()
+        && isValidSchoolProfile(incoming(), schoolId)
+        && incoming().schoolCode == existing().schoolCode
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(schoolId) && isBootstrappedAdmin();
+    }
+  }
+}

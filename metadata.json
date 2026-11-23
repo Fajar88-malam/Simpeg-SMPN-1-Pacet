@@ -1,0 +1,8 @@
+{
+  "name": "SIPEG SMPN 1 Pacet Cianjur",
+  "description": "Sistem Informasi Kepegawaian, Daftar Urut Kepegawaian (DUK), dan Pemantauan Absensi Real-Time Dinas Pendidikan Pemuda dan Olahraga Kabupaten Cianjur untuk SMP Negeri 1 Pacet.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,455 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized system administrator for SMP Negeri 1 Pacet.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "name", "role", "createdAt"]
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Personal account mapping between Firebase Auth UID and linked employee profile.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "employeeId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "displayName", "employeeId", "createdAt", "updatedAt"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Official employment and DUK (Daftar Urut Kepegawaian) record for SMP Negeri 1 Pacet Kabupaten Cianjur.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "schoolCode": {
+          "type": "string",
+          "enum": ["SMPN1PACET"]
+        },
+        "nip": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "nama": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 140
+        },
+        "gelarDepan": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "gelarBelakang": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "jabatan": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 140
+        },
+        "tmtJabatan": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "departemen": {
+          "type": "string",
+          "enum": [
+            "Pimpinan & Manajemen",
+            "Kurikulum & IPA-Matematika",
+            "Bahasa & Sastra",
+            "IPS, PPKn & Keagamaan",
+            "PJOK & Seni Budaya",
+            "Bimbingan & Konseling",
+            "Tata Usaha & Administrasi",
+            "Sarpras & Perpustakaan"
+          ]
+        },
+        "statusKepegawaian": {
+          "type": "string",
+          "enum": ["PNS", "PPPK", "Honorer Daerah"]
+        },
+        "pangkatGolongan": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "tmtPangkat": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "tmtCpns": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "masaKerjaTahun": {
+          "type": "integer"
+        },
+        "masaKerjaBulan": {
+          "type": "integer"
+        },
+        "diklatNama": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "diklatTahun": {
+          "type": "string",
+          "maxLength": 10
+        },
+        "pendidikanJenjang": {
+          "type": "string",
+          "enum": ["S3", "S2", "S1/D4", "D3", "D2/D1", "SMA/SMK"]
+        },
+        "pendidikanJurusan": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "pendidikanTahunLulus": {
+          "type": "string",
+          "maxLength": 10
+        },
+        "tanggalLahir": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "jenisKelamin": {
+          "type": "string",
+          "enum": ["L", "P"]
+        },
+        "catatanMutasi": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "isVerifiedByAdmin": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerUid",
+        "schoolCode",
+        "nip",
+        "nama",
+        "gelarDepan",
+        "gelarBelakang",
+        "jabatan",
+        "tmtJabatan",
+        "departemen",
+        "statusKepegawaian",
+        "pangkatGolongan",
+        "tmtPangkat",
+        "tmtCpns",
+        "masaKerjaTahun",
+        "masaKerjaBulan",
+        "diklatNama",
+        "diklatTahun",
+        "pendidikanJenjang",
+        "pendidikanJurusan",
+        "pendidikanTahunLulus",
+        "tanggalLahir",
+        "jenisKelamin",
+        "catatanMutasi",
+        "isVerifiedByAdmin",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "EmployeePrivateContact": {
+      "title": "EmployeePrivateContact",
+      "description": "Strictly isolated PII contact details belonging to an employee.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "nik": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "noHp": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "emailPribadi": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "alamat": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "kontakDarurat": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerUid", "nik", "noHp", "emailPribadi", "alamat", "kontakDarurat", "updatedAt"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Real-time daily attendance log for SMP Negeri 1 Pacet employees.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "schoolCode": {
+          "type": "string",
+          "enum": ["SMPN1PACET"]
+        },
+        "employeeId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "employeeName": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "nip": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "departemen": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Hadir", "Terlambat", "Izin", "Sakit", "Dinas Luar"]
+        },
+        "checkInTime": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "checkOutTime": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "schoolCode",
+        "employeeId",
+        "ownerUid",
+        "employeeName",
+        "nip",
+        "departemen",
+        "date",
+        "status",
+        "checkInTime",
+        "checkOutTime",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SchoolProfile": {
+      "title": "SchoolProfile",
+      "description": "Institutional profile, address, and official school & regional government logos for SMP Negeri 1 Pacet.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "schoolCode": {
+          "type": "string",
+          "enum": ["SMPN1PACET"]
+        },
+        "namaSekolah": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 140
+        },
+        "npsn": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "dinasNaungan": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "alamat": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 300
+        },
+        "kodePos": {
+          "type": "string",
+          "maxLength": 16
+        },
+        "telepon": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "website": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "kepalaSekolahNama": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "kepalaSekolahNip": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "logoSekolah": {
+          "type": "string",
+          "maxLength": 200000
+        },
+        "logoPemda": {
+          "type": "string",
+          "maxLength": 200000
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "schoolCode",
+        "namaSekolah",
+        "npsn",
+        "dinasNaungan",
+        "alamat",
+        "kodePos",
+        "telepon",
+        "email",
+        "website",
+        "kepalaSekolahNama",
+        "kepalaSekolahNip",
+        "logoSekolah",
+        "logoPemda",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Administrator registry for RBAC verification."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Personal account metadata linking Auth UID to an employee record."
+    },
+    "/employees/{employeeId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Official employment and DUK records for SMP Negeri 1 Pacet."
+    },
+    "/employees/{employeeId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/EmployeePrivateContact" },
+      "description": "Isolated PII contact subcollection (docId = 'contact') accessible only to owner or admin."
+    },
+    "/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Real-time daily attendance records for school employees."
+    },
+    "/school_profile/{schoolId}": {
+      "schema": { "$ref": "#/entities/SchoolProfile" },
+      "description": "Official school identity, address, and uploaded School & Pemda logos."
+    }
+  }
+}
